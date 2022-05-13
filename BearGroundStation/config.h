@@ -2,7 +2,7 @@
 #define PASSWORD1 NULL
 
 #define SSID2 "Thehojos mobile 2.4"
-#define PASSWORD2 "Ball00nZ!"
+#define PASSWORD2 "NotTheRealPassword"
 
 #define LORA_2_PAYLOAD_CALLSIGN "KD2EAT-11"
 #define MY_CALLSIGN "KD2EAT-10"
