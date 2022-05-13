@@ -1,8 +1,8 @@
-#define SSID1 "RedRover"
-#define PASSWORD1 NULL
+#define SSID1 "RedRover"			// Change as needed
+#define PASSWORD1 NULL				// Change as needed
 
-#define SSID2 "Thehojos mobile 2.4"
-#define PASSWORD2 "NotTheRealPassword"
+#define SSID2 "Thehojos mobile 2.4"		// Change as needed
+#define PASSWORD2 "NotTheRealPassword"		// Change as needed
 
 #define LORA_2_PAYLOAD_CALLSIGN "KD2EAT-11"
 #define MY_CALLSIGN "KD2EAT-10"
