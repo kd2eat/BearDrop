@@ -229,7 +229,7 @@ void LoRaSend() {
   Serial.print("Overrride switch set to: "); Serial.print(Temp.overrideSwitchState);  
   Serial.print(".  Drop switch set to: "); Serial.println(Temp.dropSwitchState);
 #else // READONLY_GROUNDSTATION
-  Serial.println("Read only ground station.  Bypassing LoRaSend().");
+  //Serial.println("Read only ground station.  Bypassing LoRaSend().");
 #endif // READONLY Ground Station
   // XXX - Todo: Log that we sent the packet via UDP
 }
@@ -240,7 +240,7 @@ void LoRaReceive(int PacketSize) {
   char  *c = (char *) &Packet;
   
   if (PacketSize <= 0) return;      // Nothing to see here, move along
-  Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
+  // Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
   if (PacketSize != sizeof(TelemetryData)) {
     Serial.println("Skipping malformed packet");
     BadPacketCountGnd++;
@@ -255,6 +255,7 @@ void LoRaReceive(int PacketSize) {
   }
   if (!LoraChecksumGood((uint8_t *) &Packet, sizeof(Packet))) {
         Serial.println("Bad Packet Checksum.  Skipping.");
+        return;
   }
   LastRSSI = LoRa.packetRssi();
   LastSNR = LoRa.packetSnr();
@@ -268,7 +269,7 @@ void LoRaReceive(int PacketSize) {
     PacketsReceived++;
     if (Packet.LastCommandReceived == TeleCommandCount) {
       // Tracker acknowledges our packet
-      Serial.println("Tracker acknowledged packet.");
+      //Serial.println("Tracker acknowledged packet.");
     }
     SendUDPlog();
     LastTbeamPacket = millis();
@@ -295,7 +296,7 @@ SendUDPlog() {
   
   IPAddress BroadcastAddr = WiFi.localIP();
   BroadcastAddr[3] = (uint8_t) 0xff;    // XXX  - make this smarter - setting last octet to broadcast only works on /24 net.
-  Serial.print("Sending a UDP Log packet to "); Serial.print(BroadcastAddr); Serial.print(":"); Serial.println(UDP_LOGGING_PORT);
+  //Serial.print("Sending a UDP Log packet to "); Serial.print(BroadcastAddr); Serial.print(":"); Serial.println(UDP_LOGGING_PORT);
   udp.beginPacket(BroadcastAddr, UDP_LOGGING_PORT);
   // XXX - needs work for payload summary
   udp.print("{");
@@ -314,6 +315,7 @@ SendUDPlog() {
   udp.print(", \"Satellites\": \""); udp.print(TelemetryData.Satellites); udp.print("\"");
   udp.print(", \"Altitude\": \""); udp.print(TelemetryData.Altitude); udp.print("\"");
   udp.print(", \"MaxAltitude\": \""); udp.print(TelemetryData.MaxAltitude); udp.print("\"");
+  udp.print(", \"GoodFix\": \""); udp.print(TelemetryData.GoodFix); udp.print("\"");
 
   float temp = TelemetryData.Lat / 1E6;
   sprintf(templine,"%3.5f", temp);
@@ -321,6 +323,13 @@ SendUDPlog() {
   temp = TelemetryData.Lng / 1E6;
   sprintf(templine,"%3.5f", temp);
   udp.print(", \"Lng\": \""); udp.print(templine); udp.print("\"");
+
+  
+  temp = TelemetryData.Hdop / 1E6;
+  sprintf(templine,"%3.5f", temp);
+  udp.print(", \"Hdop\": \""); udp.print(templine); udp.print("\"");
+
+  
   udp.print(", \"LastCommandReceived\": \""); udp.print(TelemetryData.LastCommandReceived); udp.print("\"");
   udp.print(", \"BadPacketsReceived\": \""); udp.print(TelemetryData.BadPacketsReceived); udp.print("\"");
 
@@ -347,8 +356,8 @@ SendPayloadSummary() {
       return false;   // If not connected to WiFi, just punt.  We'll try again next time.
     }
 
-    if ((TelemetryData.Lat == 0) || (TelemetryData.Lng == 0)) {
-      // Assume bad GPS coordinates.  Not great, but it'll do for USA.
+    if (!TelemetryData.GoodFix ) {
+      // We we don't have a good fix reported from the T-Beam, don't send a payload summary.
       return false;
     }
     IPAddress BroadcastAddr = WiFi.localIP();

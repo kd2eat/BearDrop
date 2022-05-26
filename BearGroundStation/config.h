@@ -1,5 +1,8 @@
-#define SSID1 "RedRover"			// Change as needed
-#define PASSWORD1 NULL				// Change as needed
+//#define SSID1 "RedRover"			// Change as needed
+//#define PASSWORD1 NULL				// Change as needed
+
+#define SSID1 "The Hojos"      // Change as needed
+#define PASSWORD1 "quiltsail1"        // Change as needed
 
 #define SSID2 "Thehojos mobile 2.4"		// Change as needed
 #define PASSWORD2 "NotTheRealPassword"		// Change as needed

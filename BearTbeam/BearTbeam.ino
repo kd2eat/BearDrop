@@ -59,7 +59,7 @@ bool  GpsEnabled = false;
 long Bytes = 0;
 long OldBytes = 0;
 int MaxAltitude = 0;      // Largest Altitude value we've seen this flight
-int LoRaMsgCount = 0;     // Keeping count of the number of messages sent
+uint32_t LoRaMsgCount = 0;     // Keeping count of the number of messages sent
 uint16_t  BadPacketsReceived = 0; 
 boolean OneHzLed = LOW;
 boolean TimeLed = LOW;
@@ -78,8 +78,24 @@ uint16_t temp_alt_counter = 0;
 uint32_t burn_start_time = 0;
 bool started_burn = false;
 
+/**************************************************************************************************************/
+bool
+GoodFix()
+{
+    return( GPS.location.isValid() && 
+            GPS.date.isValid() &&
+            GPS.time.isValid() &&
+            GPS.speed.isValid() &&
+            GPS.course.isValid() &&
+            GPS.altitude.isValid()&&
+            GPS.satellites.isValid() &&
+            GPS.hdop.isValid() &&
+            (GPS.hdop.value() < 250.0)        // Based on scatter plot of sample data, anything under seems reasonable
+            );
+}
 
-//
+/**************************************************************************************************************/
+
 void burnWire() { 
   Serial.println("In burnwire");
   if (BearDropped == 1) return;
@@ -97,12 +113,15 @@ void burnWire() {
     started_burn = false; //enable program to run cutdown again if error
   }
 }
+
+/**************************************************************************************************************/
+
 void DropBear() {
   if (overrideSwitchState == 1) {  //override switch flipped 
     return; // exit function immediately 
   }
   //overrideSwitchState = 0 from here
-  if (GPS.altitude.meters() >=  DROPALTITUDE) { //check if drop altitude threshold is reached
+  if ((GPS.altitude.meters() >=  DROPALTITUDE) && GoodFix()) { //check if drop altitude threshold is reached
     
     temp_alt_counter++;   //increment up counter, want several good readings in a row
   }
@@ -304,7 +323,9 @@ GpsInit()
 #endif // DEBUG_UBLOX_WAIT
 #endif // DEBUG_UBLOX 
 }
+
 /**************************************************************************************************************/
+
 void
 OledInit() {
   //reset OLED display via software
@@ -407,6 +428,8 @@ void LoRaSend() {
   TelemetryData.MaxAltitude = MaxAltitude;
   TelemetryData.Lat = GPS.location.lat() * 1E6;
   TelemetryData.Lng = GPS.location.lng() * 1E6;
+  TelemetryData.Hdop = GPS.hdop.value() * 1E6;
+  TelemetryData.GoodFix = (uint8_t) GoodFix();
   TelemetryData.LastCommandReceived = LastCommandReceived;
   TelemetryData.BearDropped = BearDropped;    // Set telemetry value based on the global variable
   TelemetryData.OverrideReceived = overrideSwitchState; 
@@ -462,6 +485,7 @@ void LoRaReceive(int PacketSize) {
   }
   if (!LoraChecksumGood((uint8_t *) &Packet, sizeof(Packet))) {
       Serial.println("Bad Packet Checksum.  Skipping.");
+      return;
   }
   LastRSSI = LoRa.packetRssi();
   LastSNR = LoRa.packetSnr();
@@ -516,7 +540,7 @@ void setup() {
 }
 /**************************************************************************************************************/
 unsigned long  NextSecond = 0;    // Start with a bogus LastSecond value so that we pass through the loop the first time
-bool  GotAlockOnce = false;
+unsigned long NextTimeToSend = 0;
 
 void loop() {
   
@@ -583,44 +607,35 @@ void loop() {
       Serial.println(F("No GPS data received: check wiring"));
     }
 
-//    Serial.print("Latitude  : ");
-    Serial.print(GPS.location.lat(), 5);
-    Serial.print("\t : ");
-//    Serial.print("Longitude : ");
-    Serial.println(GPS.location.lng(), 4);
-    Serial.print("Alt  : ");
-    Serial.print(GPS.altitude.meters());
-    Serial.print("\tSats: ");
-    Serial.print(GPS.satellites.value());
-    Serial.print("\t");
-    Serial.print("Time      : ");
-    Serial.print(GPS.time.hour());
-    Serial.print(":");
-    Serial.print(GPS.time.minute());
-    Serial.print(":");
-    Serial.println(GPS.time.second());
-    Serial.print("Bytes: ");
-    Serial.println(Bytes);
-    Serial.println("");
-    if (GPS.altitude.meters() > MaxAltitude) {
-      MaxAltitude = GPS.altitude.meters();
-    }
-
 #ifdef OLED
      OledUpdate();
 #endif // OLED
-#ifdef LORA
-     // GPS Locking problems.  Only send if we have a GPS lock.
-     if (GPS.location.isValid() || GotAlockOnce) {
-      LoRaSend();
-      GotAlockOnce = true;    // Once we get a lock, we beacon, even if we lose it later
-     } else {
-      //LoRaSend();
-      Serial.println("Skipping LoRaSend().  No lock.");
-     }
+  }   // Once per second loop 
+  
+#ifdef LORA  
+  // Special once per "second" loop for LoRa.  If the GPS isn't ready at the top of the second, we keep retrying each
+  // time through the main loop, since we're consuming more characters from the GPS above.  We will give it the totally abritray 
+  // amount of "50 milliseconds" (about 60 characters at 9600 baud) to get a decent fix.  If we don't have one by then, we beacon anyway
+  // and the status in the telemetry data will indicate that it's a bad fix.
+  
+  if (millis() > NextTimeToSend) {  //  
+      if (GoodFix() || (millis() > NextTimeToSend + 50)) {   // Either it's good, or we've waited too long
+        if (GoodFix() && (GPS.altitude.meters() > MaxAltitude)) {
+          MaxAltitude = GPS.altitude.meters();
+        }
+        LoRaSend();
+        NextTimeToSend += 1000;
+
+        // Write some debugs to the console
+        Serial.print(GPS.location.lat(), 5);  Serial.print("\t : ");    Serial.println(GPS.location.lng(), 4);
+        Serial.print("Alt  : ");    Serial.print(GPS.altitude.meters());    Serial.print("\tSats: ");    Serial.print(GPS.satellites.value());
+          Serial.print("\t");    Serial.print("Time      : ");   Serial.print(GPS.time.hour());    Serial.print(":");
+          Serial.print(GPS.time.minute()); Serial.print(":"); Serial.println(GPS.time.second());
+        Serial.print("Bytes: "); Serial.println(Bytes); Serial.println("");
+      }
+  }
 #endif // LORA
-  }    
-}
+}  // Main loop
 
 static void smartDelay(unsigned long ms)                
 {
