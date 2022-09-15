@@ -1,24 +1,28 @@
 #include <stdint.h>
 
-#define DROPALTITUDE 30500 //in meters
+#define DROPALTITUDE 40500 //in meters
+#define MAX_PARACHUTE_CUT 600   // Do not allow parachute cut if above this altitude
+#define BURNTIME  4000    // Length of time to turn on nichrome
 
 // Pin Definitions
-#define LED_GREEN 0
+
 #define LED_BLUE  4
-#define LED_RED   15
 #define LED_YELLOW 35
-#define LED_TIME  LED_RED
 #define LED_BYTESIN  LED_BLUE
 #define PIN_SERVO 2
 #define PIN_OLED_SDA 21
 #define PIN_OLED_SCL 22
-#define CUTDOWN     13 //GPIO13 cutdown nicrome
+#define PIN_BEAR    13 //GPIO13 cutdown nicrome
+#define PIN_TEMPERATURE 14
+#define PIN_VOLTAGE_DIVIDER 25
+#define PIN_BUZZER  0
+#define PIN_PARACHUTE 15
 
 //########################################################################################
 //# Functions
-#define OLED
+//#define OLED
 #define LORA
-#define CAMERA_SWITCHER               // Enable if using a camera switching module
+//#define CAMERA_SWITCHER               // Enable if using a camera switching module
 //########################################################################################
 
 #ifdef CAMERA_SWITCHER

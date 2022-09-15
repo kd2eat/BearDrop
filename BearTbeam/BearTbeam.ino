@@ -17,11 +17,14 @@
 #include <SPI.h>
 #include <LoRa.h>
 
-//Libraries for OLED Display
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "hexdump.h"
+
+// https://github.com/lewisxhe/AXP202X_Library
+#include "axp20x.h"
+
 
 #define SCK     5    // GPIO5  -- SX1278's SCK
 #define MISO    19   // GPIO19 -- SX1278's MISnO
@@ -40,12 +43,17 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //package data
-int BearDropped = 0; //initialize bear state
-int dropSwitchState = 0;
-int overrideSwitchState = 0;
+uint8_t BearDropped = 0; //initialize bear state
+uint8_t ParachuteDropped = 0;
+uint8_t dropSwitchState = 0;
+uint8_t overrideSwitchState = 0;
+uint8_t parachuteSwitchState = 0;
+uint8_t buzzerSwitchState = 0;
 
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
+
+AXP20X_Class axp;
 
 struct TelemetryData TelemetryData;
 int16_t LastRSSI = 0;
@@ -61,7 +69,6 @@ long OldBytes = 0;
 int MaxAltitude = 0;      // Largest Altitude value we've seen this flight
 uint32_t LoRaMsgCount = 0;     // Keeping count of the number of messages sent
 uint16_t  BadPacketsReceived = 0; 
-boolean OneHzLed = LOW;
 boolean TimeLed = LOW;
 boolean BytesLedVal = LOW;
 
@@ -75,9 +82,47 @@ bool CameraForceDownCompleted = false;
 #endif // CAMERA_SWITCHER
 
 uint16_t temp_alt_counter = 0;
-uint32_t burn_start_time = 0;
-bool started_burn = false;
+uint16_t parachute_alt_counter = 0;
+uint32_t parachute_start_time = 0;
+uint32_t bear_start_time = 0;
+bool startedBearBurn = false;
+bool startedParachuteBurn = false;
 
+/**************************************************************************************************************/
+// Return voltage in 10ths of a volt
+int
+GetVoltage()
+{
+  int32_t millivolts = analogRead(PIN_VOLTAGE_DIVIDER) * 3300  / 4096;   // 12 bit ADC (4096 values), 3v3 (3300 millivolts)
+  millivolts += 194;          // Based on observation, the ADC is reading low
+  millivolts *= 2;          // Voltage Divider is 50/50.
+  if (Serial) {
+    Serial.print("Pin: "); Serial.println(millivolts); 
+  }
+  return(millivolts);
+}
+
+/**************************************************************************************************************/
+// Return temperature in 10ths of a degree, C.
+
+#define TEMP_SAMPLES  10
+int
+GetTemperature()
+{
+  int32_t AdcValue = 0;
+  int i;
+
+  for (i=0; i< TEMP_SAMPLES; i++) {
+    AdcValue += analogRead(PIN_TEMPERATURE);
+    smartDelay(1);    // Short delay between readings
+  }
+  AdcValue = AdcValue / TEMP_SAMPLES;
+  int32_t millivolts = AdcValue * 3300  / 4096;   // 12 bit ADC (4096 values), 3v3 (3300 millivolts)
+  millivolts +=144;          // Based on observation, the ADC is reading high
+  int temperature = millivolts - 500;   // Tenths of a degree C
+  //Serial.print("Pin: "); Serial.print(millivolts); Serial.print("    Temperature is: "); Serial.println(temperature);
+  return(temperature);
+}
 /**************************************************************************************************************/
 bool
 GoodFix()
@@ -96,22 +141,59 @@ GoodFix()
 
 /**************************************************************************************************************/
 
-void burnWire() { 
-  Serial.println("In burnwire");
-  if (BearDropped == 1) return;
-  Serial.println("Turning on nichrome");
-  digitalWrite(CUTDOWN, HIGH); //turn on nicrome cutter
+void burnParachuteWire() { 
+  if (Serial) Serial.println("In burnParachutewire");
+  if (ParachuteDropped == 1) return;
+  if (Serial) Serial.println("Turning on parachute nichrome");
+  digitalWrite(PIN_PARACHUTE, HIGH); //turn on nicrome cutter
   
-  if (started_burn == false) { //if first time running burnWire()
-    started_burn = true;
-    burn_start_time = millis(); //get time when burnWire() first ran
+  if (startedParachuteBurn == false) { //if first time running burnBearWire()
+    startedParachuteBurn = true;
+    parachute_start_time = millis(); //get time when burnBearWire() first ran
   }
-  if ((millis() - burn_start_time) >= 4000) { //if current time - time when burnWire() first ran >= 2000 ms
-    Serial.println("Turning off nichrome");
-    digitalWrite(CUTDOWN, LOW); //stop nicrome burning
+  if ((millis() - parachute_start_time) >= BURNTIME) { //if current time - time when burnBearWire() first ran >= 2000 ms
+    if (Serial) Serial.println("Turning off nichrome");
+    digitalWrite(PIN_PARACHUTE, LOW); //stop nicrome burning
+    ParachuteDropped = 1;   // Update global "Beardropped" variable.
+    startedParachuteBurn = false; //enable program to run PIN_BEAR again if error
+  }
+}
+/**************************************************************************************************************/
+
+void burnBearWire() { 
+  if (Serial) Serial.println("In burnBearWire");
+  if (BearDropped == 1) return;
+  if (Serial) Serial.println("Turning on nichrome");
+  digitalWrite(PIN_BEAR, HIGH); //turn on nicrome cutter
+  
+  if (startedBearBurn == false) { //if first time running burnBearWire()
+    startedBearBurn = true;
+    bear_start_time = millis(); //get time when burnBearWire() first ran
+  }
+  if ((millis() - bear_start_time) >= 4000) { //if current time - time when burnBearWire() first ran >= 2000 ms
+    if (Serial) Serial.println("Turning off nichrome");
+    digitalWrite(PIN_BEAR, LOW); //stop nicrome burning
     BearDropped = 1;   // Update global "Beardropped" variable.
-    started_burn = false; //enable program to run cutdown again if error
+    startedBearBurn = false; //enable program to run PIN_BEAR again if error
   }
+}
+
+/**************************************************************************************************************/
+
+void DropParachute() {
+  if (overrideSwitchState == 1) {  //override switch flipped 
+    return; // exit function immediately 
+  }
+  //overrideSwitchState = 0 from here
+  if ((parachuteSwitchState == 1) && (GPS.altitude.meters() >=  MAX_PARACHUTE_CUT) && GoodFix() ) {
+    if (Serial) Serial.println("Not cutting down.  Altitude too high.");
+    return;
+  }
+  if ((parachuteSwitchState == 1) || startedParachuteBurn) {   //we have received five altitudes higher than the threshold
+    burnParachuteWire();                                                            // OR manual switch is flipped ir we're already burning
+    return;
+  }
+  return;
 }
 
 /**************************************************************************************************************/
@@ -125,8 +207,8 @@ void DropBear() {
     
     temp_alt_counter++;   //increment up counter, want several good readings in a row
   }
-  if ((temp_alt_counter >= 5)  ||  (dropSwitchState == 1) || started_burn) {   //we have received five altitudes higher than the threshold
-    burnWire();                                                            // OR manual switch is flipped ir we're already burning
+  if ((temp_alt_counter >= 5)  ||  (dropSwitchState == 1) || startedBearBurn) {   //we have received five altitudes higher than the threshold
+    burnBearWire();                                                            // OR manual switch is flipped ir we're already burning
     return;
   }
   return;
@@ -178,7 +260,7 @@ int LoraChecksumGood(uint8_t *Message, int Length)
 void
 GpsSerialEnable()
 {
-  Serial.println("Enabling GPS");
+  if (Serial) Serial.println("Enabling GPS");
   GPSSerial.begin(9600, SERIAL_8N1, 34, 12);      // Rev1 board pinout - Use "12, 15" or Rev 0.x boards.
   GpsEnabled = true;
 }
@@ -187,7 +269,7 @@ GpsSerialEnable()
 void
 GpsSerialDisable()
 {
-  Serial.println("Disabling GPS");
+  if (Serial) Serial.println("Disabling GPS");
   GPSSerial.end();
   GpsEnabled = false;
 }
@@ -207,11 +289,11 @@ void FixUBXChecksum(uint8_t *Message, int Length)
   }
   
   if (Message[Length-2] != CK_A) {
-     Serial.println("Checksum was incorrect.  Fixing CK_A");
+     if (Serial) Serial.println("Checksum was incorrect.  Fixing CK_A");
      Message[Length-2] = CK_A;
   }
     if (Message[Length-1] != CK_B) {
-     Serial.println("Checksum was incorrect.  Fixing CK_B");
+     if (Serial) Serial.println("Checksum was incorrect.  Fixing CK_B");
      Message[Length-1] = CK_B;
   }
 }
@@ -279,29 +361,29 @@ GpsInit()
   delay(300);
 
   // Confirm the setting before we start
-  Serial.println("Sending first query");
+  if (Serial) Serial.println("Sending first query");
   if (GPSSerial.write( (uint8_t *)&CheckNav, sizeof(CheckNav)) != sizeof(CheckNav)) {
-    Serial.println("ERROR: Sending first query.");
+    if (Serial) Serial.println("ERROR: Sending first query.");
   }
   GPSSerial.flush();
 #endif //DEBUG_UBLOX
 
 
   delay(300);
-  Serial.println("Sending GPS init string (Airborne mode)");
+  if (Serial) Serial.println("Sending GPS init string (Airborne mode)");
   // Set dynamic mode (Airborne).  Required to allow flights over 12000 meters.
   if (GPSSerial.write( (uint8_t *)&SetCfgNav5A, sizeof(SetCfgNav5A)) != sizeof(SetCfgNav5A)) {
-    Serial.println("ERROR: Init string");
+    if (Serial) Serial.println("ERROR: Init string");
   }    
   GPSSerial.flush();
 
 
 #ifdef DEBUG_UBLOX
   delay(300);
-  Serial.println("Sending second query");
+  if (Serial) Serial.println("Sending second query");
 
   if (GPSSerial.write( (uint8_t *)&CheckNav, sizeof(CheckNav)) != sizeof(CheckNav)) {
-    Serial.println("ERROR: Sending second query.");
+    if (Serial) Serial.println("ERROR: Sending second query.");
   }
   GPSSerial.flush();
 #ifdef DEBUG_UBLOX_WAIT
@@ -337,7 +419,7 @@ OledInit() {
   //initialize OLED
   Wire.begin(OLED_SDA, OLED_SCL);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3c, false, false)) { // Address 0x3C for 128x64
-    Serial.println(F("SSD1306 allocation failed"));
+    if (Serial) Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
 
@@ -387,12 +469,13 @@ OledUpdate() {
 /*************************************************************************************************************/
 void
 OledDie(char *msg) {
-
+#ifdef OLED
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0*16); display.print(msg);
   display.invertDisplay(true);
   display.display();
+#endif //OLED
   while (1) ;   // Hang here
 }
 /**************************************************************************************************************/
@@ -404,11 +487,11 @@ void LoRaInit() {
   LoRa.setPins(SS, RST, DI0);
 
   if (!LoRa.begin(BAND)) {
-    Serial.println("Starting LoRa failed!");
+    if (Serial) Serial.println("Starting LoRa failed!");
     OledDie("LoRa FAIL");   // Won't return
   }
   LoRa.setSpreadingFactor(8);    // Max 976bps, which is plenty for our needs
-  Serial.println("LoRa Initializing OK!");
+  if (Serial) Serial.println("LoRa Initializing OK!");
 }
 /**************************************************************************************************************/
 void LoRaSend() {
@@ -433,6 +516,11 @@ void LoRaSend() {
   TelemetryData.LastCommandReceived = LastCommandReceived;
   TelemetryData.BearDropped = BearDropped;    // Set telemetry value based on the global variable
   TelemetryData.OverrideReceived = overrideSwitchState; 
+  TelemetryData.ParachuteDropped = ParachuteDropped;
+  TelemetryData.BuzzerReceived = buzzerSwitchState;
+  //TelemetryData.Millivolts = (int) axp.getBattVoltage();
+  TelemetryData.Millivolts = (int) GetVoltage();
+  TelemetryData.TempTenths = GetTemperature();
   FixLoraChecksum((uint8_t *) &TelemetryData, sizeof(TelemetryData));  
 
   
@@ -448,11 +536,11 @@ void
 SwitchCameraView() {
   if (!CameraForcedDown) {
     if (ServoPos == DOWNCAMERA) {
-      Serial.println("Pointing camera to the side.");
+      if (Serial) Serial.println("Pointing camera to the side.");
       ServoPos = SIDECAMERA;
       ToggleCameraTime = millis() + SIDE_CAMERA_TIME*1000;
     } else {
-      Serial.println("Pointing camera down.");
+      if (Serial) Serial.println("Pointing camera down.");
       ServoPos = DOWNCAMERA;
       ToggleCameraTime = millis() + DOWN_CAMERA_TIME*1000;
     }
@@ -470,9 +558,11 @@ void LoRaReceive(int PacketSize) {
   char  *c = (char *) &Packet;
   
   if (PacketSize <= 0) return;      // Nothing to see here, move along
-  Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
+  if (Serial) {
+    Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
+  }
   if (PacketSize != sizeof(TeleCommand)) {
-    Serial.println("Skipping malformed packet");
+    if (Serial) Serial.println("Skipping malformed packet");
     BadPacketsReceived++;
     for (int i = 0 ; i < PacketSize; i++) {
       char ignored = LoRa.read();     // Gobble up malformed packet
@@ -484,44 +574,54 @@ void LoRaReceive(int PacketSize) {
     }
   }
   if (!LoraChecksumGood((uint8_t *) &Packet, sizeof(Packet))) {
-      Serial.println("Bad Packet Checksum.  Skipping.");
+      if (Serial) Serial.println("Bad Packet Checksum.  Skipping.");
       return;
   }
   LastRSSI = LoRa.packetRssi();
   LastSNR = LoRa.packetSnr();
 
   if ((Packet.DestinationAddr != LORA_TRACKER) && (Packet.DestinationAddr != LORA_BROADCAST)) {
-    Serial.println("Skipping packet that's not for me.");
+    if (Serial) Serial.println("Skipping packet that's not for me.");
     return;   // Packet is not for us
   } 
+
+  //Serial.println("Received a packet");
   LastCommandReceived = Packet.CommandCount;
   overrideSwitchState = Packet.overrideSwitchState;    // Set our global variable based on the value from the ground station
   dropSwitchState = Packet.dropSwitchState; 
+  buzzerSwitchState = Packet.buzzerSwitchState;
+  parachuteSwitchState = Packet.parachuteSwitchState;
   
   // If we got this far, we got a decent command.  Toggle the camera position.
 #ifdef CAMERA_SWITCHER
   SwitchCameraView();
 #endif // CAMERA_SWITCHER
+#ifdef OLED
   OledUpdate();
+#endif //OLED
 }
 
 /**************************************************************************************************************/
 
 void setup() {
-  Serial.begin(115200);
+  if (Serial) {
+    Serial.begin(115200);
+  }
   delay(500);
-  Serial.println("Moat 1.1");
-  delay(2000);
-  pinMode(CUTDOWN, OUTPUT);
-  digitalWrite(CUTDOWN, LOW); //initialize CUTDOWN nicrome to LOW (don't drop bear)
-  pinMode(LED_GREEN, OUTPUT);
-  digitalWrite(LED_GREEN, OneHzLed);
-  pinMode(LED_RED, OUTPUT);
+  if (Serial) Serial.println("Moat 1.1");
+  delay(2000); // Delays give time for the GPS chip to initialize
+  pinMode(PIN_BEAR, OUTPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
+  pinMode(PIN_PARACHUTE, OUTPUT);
+  digitalWrite(PIN_BEAR, LOW); //initialize PIN_BEAR nicrome to LOW (don't drop bear)
   pinMode(LED_BLUE, OUTPUT);
-  pinMode(LED_TIME, OUTPUT);    // This LED will be set high when the time is non-zero
-  digitalWrite(LED_TIME, LOW);
   pinMode(LED_BYTESIN, OUTPUT); // We'll flash this LED if we are getting data from the GPS
   digitalWrite(LED_BYTESIN, LOW);
+  digitalWrite(PIN_BUZZER, LOW);
+  digitalWrite(PIN_PARACHUTE, LOW);
+  
+  //pinMode(PIN_TEMPERATURE, INPUT);
+  //pinMode(PIN_VOLTAGE_DIVIDER,INPUT);
 
   
 #ifdef OLED
@@ -537,6 +637,12 @@ void setup() {
    myservo.write(ServoPos);
    ToggleCameraTime = millis() + DOWN_CAMERA_TIME*1000; 
 #endif // CAMERA_SWITCHER
+
+  // Initialize AXP192 power regulator - we use this for monitoring battery voltage
+  if(axp.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
+    if (Serial) Serial.println(F("failed to initialize communication with AXP192"));
+  }
+  
 }
 /**************************************************************************************************************/
 unsigned long  NextSecond = 0;    // Start with a bogus LastSecond value so that we pass through the loop the first time
@@ -582,29 +688,22 @@ void loop() {
 #endif // CAMERA_SWITCHER 
 
   if ((millis() >= NextSecond) ) {
-    OneHzLed = !OneHzLed;  digitalWrite(LED_GREEN, OneHzLed);     // Blink LED
     if (Bytes != OldBytes) {
       BytesLedVal = !BytesLedVal; digitalWrite(LED_BYTESIN, BytesLedVal);     // Blink LED
       OldBytes = Bytes;
     }
-    if ((GPS.time.hour() + GPS.time.minute() + GPS.time.second()) == 0) {   // If we have time, set LED high
-      digitalWrite(LED_TIME, LOW);
-      //Serial.println("TIME = LOW");
-    } else {
-      if (GPS.satellites.value() > 4)  {    // If we have good sats - leave light solid
-          //Serial.println("TIME = HIGH");
-          digitalWrite(LED_TIME, HIGH);      // Time and sats - turn blue on solid
-      } else {
-         TimeLed = !TimeLed;
-         //Serial.println("TIME = Blink");
-         digitalWrite(LED_TIME, TimeLed);      // Time but no sats - blink  blue
-      }
-    }
+
     DropBear();
+    DropParachute();
+    if (buzzerSwitchState != 0) {    // Turn the buzzer on or off as requested.
+      digitalWrite(PIN_BUZZER, HIGH);
+    } else {
+      digitalWrite(PIN_BUZZER, LOW);
+    }
     NextSecond = millis() + 1000;
     
     if (NextSecond > 5000 && GPS.charsProcessed() < 10) {
-      Serial.println(F("No GPS data received: check wiring"));
+      if (Serial) Serial.println(F("No GPS data received: check wiring"));
     }
 
 #ifdef OLED
@@ -619,6 +718,7 @@ void loop() {
   // and the status in the telemetry data will indicate that it's a bad fix.
   
   if (millis() > NextTimeToSend) {  //  
+      //Serial.println("Send Time:");
       if (GoodFix() || (millis() > NextTimeToSend + 50)) {   // Either it's good, or we've waited too long
         if (GoodFix() && (GPS.altitude.meters() > MaxAltitude)) {
           MaxAltitude = GPS.altitude.meters();
@@ -627,11 +727,13 @@ void loop() {
         NextTimeToSend += 1000;
 
         // Write some debugs to the console
-        Serial.print(GPS.location.lat(), 5);  Serial.print("\t : ");    Serial.println(GPS.location.lng(), 4);
-        Serial.print("Alt  : ");    Serial.print(GPS.altitude.meters());    Serial.print("\tSats: ");    Serial.print(GPS.satellites.value());
+        if (Serial) {
+          Serial.print(GPS.location.lat(), 5);  Serial.print("\t : ");    Serial.println(GPS.location.lng(), 4);
+          Serial.print("Alt  : ");    Serial.print(GPS.altitude.meters());    Serial.print("\tSats: ");    Serial.print(GPS.satellites.value());
           Serial.print("\t");    Serial.print("Time      : ");   Serial.print(GPS.time.hour());    Serial.print(":");
           Serial.print(GPS.time.minute()); Serial.print(":"); Serial.println(GPS.time.second());
-        Serial.print("Bytes: "); Serial.println(Bytes); Serial.println("");
+          Serial.print("Bytes: "); Serial.println(Bytes); Serial.println("");
+        }
       }
   }
 #endif // LORA

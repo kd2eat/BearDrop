@@ -130,6 +130,16 @@ LEDupdate() {
    } else {
     digitalWrite(LED_SAFETY, LOW);
    }
+   if (TelemetryData.ParachuteDropped) {
+    digitalWrite(LED_PARACHUTE, HIGH);
+   } else {
+    digitalWrite(LED_PARACHUTE, LOW);
+   }
+   if (TelemetryData.BuzzerReceived) {
+    digitalWrite(LED_BUZZER, HIGH);
+   } else {
+    digitalWrite(LED_BUZZER, LOW);
+   }
    if (CurrentWiFiStatus != WL_CONNECTED ){ //no wifi connection?
     digitalWrite(LED_WIFI_STATUS, HIGH);
    } else {
@@ -194,7 +204,6 @@ OledDie(char *msg) {
   while (1) ;   // Hang here
 }
 /**************************************************************************************************************/
-// XXX Todo: Set Spacing
 // XXX Todo: Set unique starting position
 void LoRaInit() {
   //SPI LoRa pins
@@ -220,14 +229,19 @@ void LoRaSend() {
   Temp.CommandCount = TeleCommandCount;
   Temp.dropSwitchState = digitalRead(DROP_SWITCH);
   Temp.overrideSwitchState = digitalRead(SAFETY_SWITCH);
+  Temp.parachuteSwitchState = digitalRead(SWITCH_PARACHUTE);
+  Temp.buzzerSwitchState = !digitalRead(SWITCH_BUZZER);
   FixLoraChecksum((uint8_t *) &Temp, sizeof(Temp));  
    
   LoRa.beginPacket();                   // start packet
   LoRa.write((uint8_t *)&Temp, sizeof(Temp));
   LoRa.endPacket();                     // finish packet and send it
 
-  Serial.print("Overrride switch set to: "); Serial.print(Temp.overrideSwitchState);  
+  Serial.print("Override switch set to: "); Serial.print(Temp.overrideSwitchState); 
+  Serial.print(".  Buzzer switch set to: "); Serial.print(Temp.buzzerSwitchState);  
+  Serial.print(".  Parachute switch set to: "); Serial.print(Temp.parachuteSwitchState);   
   Serial.print(".  Drop switch set to: "); Serial.println(Temp.dropSwitchState);
+
 #else // READONLY_GROUNDSTATION
   //Serial.println("Read only ground station.  Bypassing LoRaSend().");
 #endif // READONLY Ground Station
@@ -288,6 +302,10 @@ void WiFiInit() {
 void
 SendUDPlog() {
   char  templine[12];
+  int DropSwitchState = digitalRead(DROP_SWITCH);
+  int OverrideSwitchState = digitalRead(SAFETY_SWITCH);
+  int BuzzerSwitchState = !digitalRead(SWITCH_BUZZER);
+  int ParachuteSwitchState = digitalRead(SWITCH_PARACHUTE);
   // We've received more packet since the last time we sent telemetry.  Proceed.
   if (CurrentWiFiStatus != WL_CONNECTED) {
     Serial.println("UDP Log Send aborted.  WiFi not connected");
@@ -338,8 +356,23 @@ SendUDPlog() {
   udp.print(", \"GroundRSSI\": \""); udp.print(LastRSSI); udp.print("\"");
 
   udp.print(", \"GroundSNR\": \""); udp.print(LastSNR); udp.print("\"");
-
-  udp.println("}");
+  
+  udp.print(", \"BearDropped\": \""); udp.print(TelemetryData.BearDropped); udp.print("\"");
+  udp.print(", \"OverrideReceived\": \""); udp.print(TelemetryData.OverrideReceived); udp.print("\"");
+  udp.print(", \"DropSwitch\": \""); udp.print(DropSwitchState); udp.print("\"");
+  udp.print(", \"LockoutSwitch\": \""); udp.print(OverrideSwitchState); udp.print("\"");
+  
+  udp.print(", \"ParachuteDropped\": \""); udp.print(TelemetryData.ParachuteDropped); udp.print("\"");
+  udp.print(", \"BuzzerReceived\": \""); udp.print(TelemetryData.BuzzerReceived); udp.print("\"");
+  udp.print(", \"ParachuteSwitch\": \""); udp.print(ParachuteSwitchState); udp.print("\"");
+  udp.print(", \"BuzzerSwitch\": \""); udp.print(BuzzerSwitchState); udp.print("\"");
+                
+  temp = ((float) TelemetryData.Millivolts / 1000.0);
+  sprintf(templine,"%2.1f", temp);
+  udp.print(", \"Voltage\": \""); udp.print(templine); udp.print("\"");
+  temp = ((float) TelemetryData.TempTenths / 10.0);
+  sprintf(templine,"%2.1f", temp);
+  udp.print(", \"Temperature\": \""); udp.print(templine); udp.print("\"");  udp.println("}");
   udp.endPacket();
 }
 /**************************************************************************************************************/// Send UDP packet in Project Horus "Payload Summary" format.  
@@ -394,7 +427,13 @@ SendPayloadSummary() {
     udp.print(", \"type\": \""); udp.print("PAYLOAD_SUMMARY"); udp.print("\"");
 //    udp.print(", \"heading\": "); udp.print(0); 
     udp.print(", \"satellites\": "); udp.print(TelemetryData.Satellites); 
-    udp.println("}");
+    temp = ((float) TelemetryData.Millivolts / 1000.0);
+    sprintf(templine,"%2.1f", temp);
+    udp.print(", \"voltage\": "); udp.print(templine); 
+    temp = ((float) TelemetryData.TempTenths / 10.0);
+    sprintf(templine,"%2.1f", temp);
+    udp.print(", \"temperature\": "); udp.print(templine); 
+    udp.println("}");  
     udp.endPacket();
     LastPacketForUDP = PacketsReceived;     // Make note of the packet that we used for this telemetry.
     return true;
@@ -433,8 +472,12 @@ void setup() {
   pinMode(LED_WARNING, OUTPUT); digitalWrite(LED_WARNING, LOW);
   pinMode(LED_SAFETY, OUTPUT); digitalWrite(LED_SAFETY, LOW);
   pinMode(LED_WIFI_STATUS, OUTPUT); digitalWrite(LED_WIFI_STATUS, LOW);
+  pinMode(LED_BUZZER, OUTPUT); digitalWrite(LED_BUZZER, LOW);
+  pinMode(LED_PARACHUTE, OUTPUT); digitalWrite(LED_PARACHUTE, LOW);
   pinMode(DROP_SWITCH, INPUT);
   pinMode(SAFETY_SWITCH, INPUT);
+  pinMode(SWITCH_PARACHUTE, INPUT);
+  pinMode(SWITCH_BUZZER, INPUT);
       
   OledInit();  
   LoRaInit();     
@@ -443,7 +486,7 @@ void setup() {
 }
 
 uint32_t  NextSecond = 0;       // Initialize couner for 1 second loop
-uint32_t  NextMinute = 0;   // Initialize timer for 5 second loop
+uint32_t  NextFifteen = 0;   // Initialize timer for 5 second loop
 uint32_t  NextPayloadSummary = 0;         // Initialize timer for Payload Summary loop
 
 void loop() {
@@ -456,11 +499,11 @@ void loop() {
     LEDupdate();
   } // One Second Loop
 
-  // One minute loop
-  if (millis() > NextMinute) {   
-        NextMinute = millis() + 60000;
+  // 15 second loop
+  if (millis() > NextFifteen) {   
+        NextFifteen = millis() + 15000;
         CheckWiFiAndUDPbind();    // Failed WiFi bind takes about 9 seconds, and freezes us up, so we only try this once/minute
-  }  // 60 second loop
+  }  // 15 second loop
   
   // Send payload summaries less frequently, on their own timer.
   if (millis() > NextPayloadSummary) {

@@ -11,6 +11,8 @@ typedef struct TelemetryData { //Tbeam to Ground Station
   int32_t Lng;
   int32_t Hdop;
   float  TrackerSNR;
+  int16_t Millivolts;
+  int16_t TempTenths;
   uint16_t  Altitude;
   uint16_t  MaxAltitude;
   uint16_t LastCommandReceived;
@@ -23,8 +25,10 @@ typedef struct TelemetryData { //Tbeam to Ground Station
   uint8_t   Second;
   uint8_t   Satellites;
   uint8_t  BearDropped;           //being sent back from the bear
+  uint8_t  ParachuteDropped;           //being sent back from the bear
   uint8_t GoodFix;
   uint8_t  OverrideReceived;   // don't need Tbeam to communicate this to ground but need vise versa?
+  uint8_t  BuzzerReceived;   // don't need Tbeam to communicate this to ground but need vise versa?
   uint8_t Checksum[2];        // Calculated just before we send the packet
 };
 
@@ -34,7 +38,9 @@ typedef struct TeleCommand {
   byte  SourceAddr;
   uint16_t  CommandCount;
   uint8_t dropSwitchState;
+  uint8_t parachuteSwitchState;
   uint8_t  overrideSwitchState; 
+  uint8_t  buzzerSwitchState; 
   uint8_t Checksum[2];        // Calculated just before we send the packet
 
 };
