@@ -2,7 +2,7 @@
 //#define PASSWORD1 NULL				// Change as needed
 
 #define SSID1 "The Hojos"      // Change as needed
-#define PASSWORD1 "xxxxxxxxxx"        // Change as needed
+#define PASSWORD1 "xxxxxxxxx"        // Change as needed
 
 #define SSID2 "Thehojos mobile 2.4"		// Change as needed
 #define PASSWORD2 "Ball00nZ!"		// Change as needed

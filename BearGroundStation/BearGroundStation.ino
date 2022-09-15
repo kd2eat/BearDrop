@@ -176,9 +176,8 @@ OledUpdate() {
   sprintf(line3, "Msgs: %5d Bad: %3d" , OledData.MsgCount, OledData.BadPacketsReceived);
   sprintf(line4, "tR: %3d tS: %2.1f", OledData.TrackerRSSI, OledData.TrackerSNR);
   sprintf(line5, "IP: %d\.%d\.%d\.%d", WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3] );
-  sprintf(line6, "S/A: %2d/%2d BadM: %3d", TeleCommandCount, OledData.LastCommandReceived,
-        BadPacketCountGnd);
-  sprintf(line7, "rR: %3d rS: %2.1f", LastRSSI, LastSNR);
+  sprintf(line6, "S/A: %4d/%4d", TeleCommandCount, OledData.LastCommandReceived);
+  sprintf(line7, "BadM: %2d  Temp: %2.1f", BadPacketCountGnd, (float) OledData.TempTenths/10);
 
   display.clearDisplay();
   display.setCursor(0,0*8); display.print(line0);

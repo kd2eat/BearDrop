@@ -20,7 +20,7 @@
 
 //########################################################################################
 //# Functions
-#define OLED
+//#define OLED
 #define LORA
 //#define CAMERA_SWITCHER               // Enable if using a camera switching module
 //########################################################################################
