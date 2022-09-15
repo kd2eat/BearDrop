@@ -302,6 +302,7 @@ void FixUBXChecksum(uint8_t *Message, int Length)
 void
 GpsInit()
 {
+  delay(2000);    // GPS needs a moment to bootstrap.  We delay a bit to give it time to get its brain squared away.
 #ifdef DEBUG_UBLOX
   char  line[256];
   int i = 0;
@@ -607,9 +608,8 @@ void setup() {
   if (Serial) {
     Serial.begin(115200);
   }
-  delay(500);
   if (Serial) Serial.println("Moat 1.1");
-  delay(2000); // Delays give time for the GPS chip to initialize
+
   pinMode(PIN_BEAR, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_PARACHUTE, OUTPUT);
@@ -619,14 +619,14 @@ void setup() {
   digitalWrite(LED_BYTESIN, LOW);
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_PARACHUTE, LOW);
-  
+
   //pinMode(PIN_TEMPERATURE, INPUT);
   //pinMode(PIN_VOLTAGE_DIVIDER,INPUT);
 
-  
 #ifdef OLED
   OledInit();
 #endif //OLED
+  delay(2000);    // *TODO* This should no longer be necessary.  There is a delay in the GPS init code to allow the GPS to boot.  Before removing this line, test via software to confirm NAV mode is set properly.
   GpsInit();
 
 #ifdef LORA
