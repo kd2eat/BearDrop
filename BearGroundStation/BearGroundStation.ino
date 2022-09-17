@@ -51,6 +51,7 @@ uint32_t  LastPacketForUDP = 0;   // Track the last packet we used for UDP telem
 uint16_t TeleCommandCount = 0;   // Number of commands we've sent to the payload
 uint16_t BadPacketCountGnd = 0;   // Bad packets the ground station has received
 uint32_t  LastTbeamPacket = 0;   // We update this timestamp every time we receive a packet from the T-Beam.
+bool  OledStale = false;
 
 /**************************************************************************************************************/
 void FixLoraChecksum(uint8_t *Message, int Length)
@@ -149,8 +150,10 @@ LEDupdate() {
    // haven't received a packet in a while?
   if ( millis() - LastTbeamPacket >= 3000 ){ // current time - last time packet was received
     digitalWrite(LED_WARNING, HIGH); //turn on warning LED
+    OledStale = true;
   } else {
     digitalWrite(LED_WARNING, LOW);
+    OledStale = false;
   }
 }
 
@@ -188,7 +191,7 @@ OledUpdate() {
   display.setCursor(0,5*8); display.print(line5);
   display.setCursor(0,6*8); display.print(line6);
   display.setCursor(0,7*8); display.print(line7);
-  display.invertDisplay( (OledData.Satellites < 5) );    // Invert display if we have no or poor lock
+  display.invertDisplay( ((OledData.Satellites < 5) ) || OledStale);    // Invert display if we have no or poor lock
   display.display();
 }
 /*************************************************************************************************************/
@@ -278,7 +281,7 @@ void LoRaReceive(int PacketSize) {
     return;   // Packet is not for us
   } else { // This packet is for us
     TelemetryData = Packet;
-    OledUpdate();
+    //OledUpdate();
     PacketsReceived++;
     if (Packet.LastCommandReceived == TeleCommandCount) {
       // Tracker acknowledges our packet
@@ -496,6 +499,7 @@ void loop() {
     NextSecond = millis() + 1000;
     LoRaSend();  //once a second send LoRa signal to Tbeam to confirm connection
     LEDupdate();
+    OledUpdate();
   } // One Second Loop
 
   // 15 second loop
