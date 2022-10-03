@@ -93,6 +93,9 @@ bool startedParachuteBurn = false;
 int
 GetVoltage()
 {
+#ifdef DEBUG_TELEMETRY
+   return(5600);      // Just return a recognizable, hard-coded value if we don't have sensors attached
+#else // !DEBUG_TELEMETRY 
   int32_t millivolts = analogRead(PIN_VOLTAGE_DIVIDER) * 3300  / 4096;   // 12 bit ADC (4096 values), 3v3 (3300 millivolts)
   millivolts += 194;          // Based on observation, the ADC is reading low
   millivolts *= 2;          // Voltage Divider is 50/50.
@@ -100,6 +103,7 @@ GetVoltage()
     Serial.print("Pin: "); Serial.println(millivolts); 
   }
   return(millivolts);
+#endif // DEBUG_TELEMETRY
 }
 
 /**************************************************************************************************************/
@@ -112,6 +116,9 @@ GetTemperature()
   int32_t AdcValue = 0;
   int i;
 
+#ifdef DEBUG_TELEMETRY
+  return(12.3);   // Just return a recognizable hard-coded value
+#else // !DEBUG_TELEMETRY - Not debug telemetry mode
   for (i=0; i< TEMP_SAMPLES; i++) {
     AdcValue += analogRead(PIN_TEMPERATURE);
     smartDelay(1);    // Short delay between readings
@@ -122,6 +129,7 @@ GetTemperature()
   int temperature = millivolts - 500;   // Tenths of a degree C
   //Serial.print("Pin: "); Serial.print(millivolts); Serial.print("    Temperature is: "); Serial.println(temperature);
   return(temperature);
+#endif //DEBUG_TELEMETRY
 }
 /**************************************************************************************************************/
 bool

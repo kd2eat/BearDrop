@@ -4,6 +4,8 @@
 #define MAX_PARACHUTE_CUT 600   // Do not allow parachute cut if above this altitude
 #define BURNTIME  4000    // Length of time to turn on nichrome
 
+//#define DEBUG_TELEMETRY         // Enable if sensors aren't attached
+
 // Pin Definitions
 
 #define LED_BLUE  4
@@ -23,6 +25,7 @@
 //#define OLED
 #define LORA
 //#define CAMERA_SWITCHER               // Enable if using a camera switching module
+
 //########################################################################################
 
 #ifdef CAMERA_SWITCHER

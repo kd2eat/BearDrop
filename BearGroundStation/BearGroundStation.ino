@@ -256,7 +256,7 @@ void LoRaReceive(int PacketSize) {
   char  *c = (char *) &Packet;
   
   if (PacketSize <= 0) return;      // Nothing to see here, move along
-  // Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
+  Serial.print("Received packet "); Serial.print(PacketSize); Serial.println(" bytes long.");
   if (PacketSize != sizeof(TelemetryData)) {
     Serial.println("Skipping malformed packet");
     BadPacketCountGnd++;
