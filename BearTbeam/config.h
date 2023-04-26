@@ -9,7 +9,6 @@
 // Pin Definitions
 
 #define LED_BLUE  4
-#define LED_YELLOW 35
 #define LED_BYTESIN  LED_BLUE
 #define PIN_SERVO 2
 #define PIN_OLED_SDA 21

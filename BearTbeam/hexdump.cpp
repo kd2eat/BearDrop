@@ -1,4 +1,6 @@
-#include <arduino.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <HardwareSerial.h>
 
 void DumpHex(const void* data, size_t size) {
   char ascii[17];

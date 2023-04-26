@@ -29,12 +29,21 @@ void loop() {
 
   int32_t next = millis();
   bool  led = false;
+  bool  temp;
   
   while (1) {
+    temp = digitalRead(SWITCH_BEAR); if (temp) {Serial.println("Bear");}
     digitalWrite(LED_BEAR,digitalRead(SWITCH_BEAR));
+    
+    temp = digitalRead(SWITCH_PARACHUTE); if (temp) {Serial.println("Parachute");}
     digitalWrite(LED_PARACHUTE,digitalRead(SWITCH_PARACHUTE));
+
+    temp = !digitalRead(SWITCH_BUZZER); if (temp) {Serial.println("Buzzer");}
     digitalWrite(LED_BUZZER,!(digitalRead(SWITCH_BUZZER)));
+    
+    temp = digitalRead(SWITCH_SAFETY); if (temp) {Serial.println("Safety");}
     digitalWrite(LED_SAFETY,digitalRead(SWITCH_SAFETY));
+
     //digitalWrite(LED_SAFETY,LOW);
     delay(100);
     if (millis() > next) {
