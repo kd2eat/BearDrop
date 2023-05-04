@@ -19,9 +19,11 @@
 #define PIN_BUZZER  0
 #define PIN_PARACHUTE 15
 
+#define TRANSMISSION_INTERVAL 2000
+
 //########################################################################################
 //# Functions
-//#define OLED
+#define OLED
 #define LORA
 //#define CAMERA_SWITCHER               // Enable if using a camera switching module
 

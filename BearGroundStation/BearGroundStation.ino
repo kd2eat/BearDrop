@@ -28,7 +28,8 @@
 //433E6 for Asia
 //866E6 for Europe
 //915E6 for North America
-#define BAND 915E6 
+//#define BAND 915E6 
+#define BAND 431500000
 
 
 //OLED pins
@@ -121,22 +122,22 @@ OledInit() {
 void
 LEDupdate() {
 
-   if (TelemetryData.BearDropped) { 
+   if (TelemetryData.StatusBits & SB_BEAR_DROPPED) { 
     digitalWrite(LED_DROP, HIGH);
    } else {
     digitalWrite(LED_DROP, LOW);
    }
-   if (TelemetryData.OverrideReceived) {
+   if (TelemetryData.StatusBits & SB_OVERRIDE_RECEIVED) {
     digitalWrite(LED_SAFETY, HIGH);
    } else {
     digitalWrite(LED_SAFETY, LOW);
    }
-   if (TelemetryData.ParachuteDropped) {
+   if (TelemetryData.StatusBits & SB_PARACHUTE_DROPPED) {
     digitalWrite(LED_PARACHUTE, HIGH);
    } else {
     digitalWrite(LED_PARACHUTE, LOW);
    }
-   if (TelemetryData.BuzzerReceived) {
+   if (TelemetryData.StatusBits & SB_BUZZER_RECEIVED) {
     digitalWrite(LED_BUZZER, HIGH);
    } else {
     digitalWrite(LED_BUZZER, LOW);
@@ -172,8 +173,7 @@ OledUpdate() {
   float TempLat = OledData.Lat / 1E6;
   float TempLng = OledData.Lng / 1E6;
 
-  sprintf(line0,"%02d-%02d-%04d %02d:%02d:%02d", OledData.Month, OledData.Day, OledData.Year,
-        OledData.Hour, OledData.Minute, OledData.Second );
+  sprintf(line0,"%02d:%02d:%02d", OledData.Hour, OledData.Minute, OledData.Second );
   sprintf(line1, "%3.5f  %3.5f", TempLat, TempLng);
   sprintf(line2, "A %5d (%5d) S %2d", OledData.Altitude, OledData.MaxAltitude, OledData.Satellites);
   sprintf(line3, "Msgs: %5d Bad: %3d" , OledData.MsgCount, OledData.BadPacketsReceived);
@@ -216,7 +216,8 @@ void LoRaInit() {
     Serial.println("Starting LoRa failed!");
     OledDie("LoRa FAIL");   // Won't return
   }
-  LoRa.setSpreadingFactor(8);    // Max 976bps, which is plenty for our needs
+  LoRa.setSpreadingFactor(9);    
+  LoRa.setCodingRate4(8);
   Serial.println("LoRa Initializing OK!");
 }
 /*************************************************************************************************************/
@@ -329,13 +330,10 @@ SendUDPlog() {
   udp.print(", \"Hour\": \""); udp.print(TelemetryData.Hour); udp.print("\"");
   udp.print(", \"Minute\": \""); udp.print(TelemetryData.Minute); udp.print("\"");
   udp.print(", \"Second\": \""); udp.print(TelemetryData.Second); udp.print("\"");
-  udp.print(", \"Month\": \""); udp.print(TelemetryData.Month); udp.print("\"");
-  udp.print(", \"Day\": \""); udp.print(TelemetryData.Day); udp.print("\"");
-  udp.print(", \"Year\": \""); udp.print(TelemetryData.Year); udp.print("\"");
   udp.print(", \"Satellites\": \""); udp.print(TelemetryData.Satellites); udp.print("\"");
   udp.print(", \"Altitude\": \""); udp.print(TelemetryData.Altitude); udp.print("\"");
   udp.print(", \"MaxAltitude\": \""); udp.print(TelemetryData.MaxAltitude); udp.print("\"");
-  udp.print(", \"GoodFix\": \""); udp.print(TelemetryData.GoodFix); udp.print("\"");
+  udp.print(", \"GoodFix\": \""); udp.print(TelemetryData.StatusBits & SB_GOOD_FIX ? 1: 0); udp.print("\"");
 
   float temp = TelemetryData.Lat / 1E6;
   sprintf(templine,"%3.5f", temp);
@@ -359,13 +357,13 @@ SendUDPlog() {
 
   udp.print(", \"GroundSNR\": \""); udp.print(LastSNR); udp.print("\"");
   
-  udp.print(", \"BearDropped\": \""); udp.print(TelemetryData.BearDropped); udp.print("\"");
-  udp.print(", \"OverrideReceived\": \""); udp.print(TelemetryData.OverrideReceived); udp.print("\"");
+  udp.print(", \"BearDropped\": \""); udp.print(TelemetryData.StatusBits & SB_BEAR_DROPPED ? 1: 0); udp.print("\"");
+  udp.print(", \"OverrideReceived\": \""); udp.print(TelemetryData.StatusBits & SB_OVERRIDE_RECEIVED ? 1: 0); udp.print("\"");
   udp.print(", \"DropSwitch\": \""); udp.print(DropSwitchState); udp.print("\"");
   udp.print(", \"LockoutSwitch\": \""); udp.print(OverrideSwitchState); udp.print("\"");
   
-  udp.print(", \"ParachuteDropped\": \""); udp.print(TelemetryData.ParachuteDropped); udp.print("\"");
-  udp.print(", \"BuzzerReceived\": \""); udp.print(TelemetryData.BuzzerReceived); udp.print("\"");
+  udp.print(", \"ParachuteDropped\": \""); udp.print(TelemetryData.StatusBits & SB_PARACHUTE_DROPPED ? 1: 0); udp.print("\"");
+  udp.print(", \"BuzzerReceived\": \""); udp.print(TelemetryData.StatusBits & SB_BUZZER_RECEIVED ? 1: 0); udp.print("\"");
   udp.print(", \"ParachuteSwitch\": \""); udp.print(ParachuteSwitchState); udp.print("\"");
   udp.print(", \"BuzzerSwitch\": \""); udp.print(BuzzerSwitchState); udp.print("\"");
                 
@@ -391,7 +389,7 @@ SendPayloadSummary() {
       return false;   // If not connected to WiFi, just punt.  We'll try again next time.
     }
 
-    if (!TelemetryData.GoodFix ) {
+    if (!TelemetryData.StatusBits & SB_GOOD_FIX ) {
       // We we don't have a good fix reported from the T-Beam, don't send a payload summary.
       return false;
     }
@@ -420,9 +418,6 @@ SendPayloadSummary() {
     udp.print(", \"hour\": "); udp.print(TelemetryData.Hour); 
     udp.print(", \"minute\": "); udp.print(TelemetryData.Minute); 
     udp.print(", \"second\": "); udp.print(TelemetryData.Second); 
-    udp.print(", \"month\": "); udp.print(TelemetryData.Month); 
-    udp.print(", \"day\": "); udp.print(TelemetryData.Day); 
-    udp.print(", \"year\": "); udp.print(TelemetryData.Year); 
     sprintf(templine,"%02d:%02d:%02d", TelemetryData.Hour, TelemetryData.Minute, TelemetryData.Second);
     udp.print(", \"time\": \""); udp.print(templine); udp.print("\"");
     udp.print(", \"model\": \""); udp.print("APRS"); udp.print("\"");
@@ -496,7 +491,7 @@ void loop() {
 
   // One Second Loop
   if (millis() > NextSecond) {  
-    NextSecond = millis() + 1000;
+    NextSecond = millis() + TRANSMISSION_INTERVAL;
     LoRaSend();  //once a second send LoRa signal to Tbeam to confirm connection
     LEDupdate();
     OledUpdate();

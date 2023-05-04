@@ -33,7 +33,9 @@
 //#define RST     14   // GPIO14 -- SX1278's RESET
 #define RST     23   // GPIO23 -- SX1278's RESET - TTGO T-Beam v1.1 is pin 23
 #define DI0     26   // GPIO26 -- SX1278's IRQ(Interrupt Request)
-#define BAND  915E6
+//#define BAND  915E6
+#define BAND 431500000
+
 
 //OLED pins
 #define OLED_SDA PIN_OLED_SDA
@@ -453,8 +455,7 @@ OledUpdate() {
   float TempLat = OledData.Lat / 1E6;
   float TempLng = OledData.Lng / 1E6;
 
-  sprintf(line0,"%02d-%02d-%04d %02d:%02d:%02d", OledData.Month, OledData.Day, OledData.Year,
-        OledData.Hour, OledData.Minute, OledData.Second );
+  sprintf(line0,"%02d:%02d:%02d", OledData.Hour, OledData.Minute, OledData.Second );
   sprintf(line1, "%3.5f  %3.5f", TempLat, TempLng);
   sprintf(line2, "A %5d (%5d) S %2d", OledData.Altitude, OledData.MaxAltitude, OledData.Satellites);
   sprintf(line3, "Msgs: %5d Bad: %3d" , OledData.MsgCount, OledData.BadPacketsReceived);
@@ -499,11 +500,13 @@ void LoRaInit() {
     if (Serial) Serial.println("Starting LoRa failed!");
     OledDie("LoRa FAIL");   // Won't return
   }
-  LoRa.setSpreadingFactor(8);    // Max 976bps, which is plenty for our needs
+  LoRa.setSpreadingFactor(9);    // Max 976bps, which is plenty for our needs
+  LoRa.setCodingRate4(8);
   if (Serial) Serial.println("LoRa Initializing OK!");
 }
 /**************************************************************************************************************/
 void LoRaSend() {
+  uint8_t sb;
   TelemetryData.DestinationAddr = LORA_GROUND_STATION;
   TelemetryData.SourceAddr = LORA_TRACKER;
   TelemetryData.TrackerRSSI = LastRSSI;
@@ -512,21 +515,22 @@ void LoRaSend() {
   TelemetryData.Hour = GPS.time.hour();
   TelemetryData.Minute = GPS.time.minute();
   TelemetryData.Second = GPS.time.second();
-  TelemetryData.Year = GPS.date.year();
-  TelemetryData.Month = GPS.date.month();
-  TelemetryData.Day = GPS.date.day();
   TelemetryData.Satellites = GPS.satellites.value();
   TelemetryData.Altitude = GPS.altitude.meters();
   TelemetryData.MaxAltitude = MaxAltitude;
   TelemetryData.Lat = GPS.location.lat() * 1E6;
   TelemetryData.Lng = GPS.location.lng() * 1E6;
   TelemetryData.Hdop = GPS.hdop.value() * 1E6;
-  TelemetryData.GoodFix = (uint8_t) GoodFix();
   TelemetryData.LastCommandReceived = LastCommandReceived;
-  TelemetryData.BearDropped = BearDropped;    // Set telemetry value based on the global variable
-  TelemetryData.OverrideReceived = overrideSwitchState; 
-  TelemetryData.ParachuteDropped = ParachuteDropped;
-  TelemetryData.BuzzerReceived = buzzerSwitchState;
+  // Load up status bits
+  sb = 0x00;
+  if (BearDropped) sb = sb | SB_BEAR_DROPPED; 
+  if (overrideSwitchState) sb = sb | SB_OVERRIDE_RECEIVED; 
+  if (ParachuteDropped) sb = sb | SB_PARACHUTE_DROPPED; 
+  if (buzzerSwitchState) sb = sb | SB_BUZZER_RECEIVED; 
+  if (GoodFix()) sb = sb | SB_GOOD_FIX; 
+  TelemetryData.StatusBits = sb;
+
   //TelemetryData.Millivolts = (int) axp.getBattVoltage();
   TelemetryData.Millivolts = (int) GetVoltage();
   TelemetryData.TempTenths = GetTemperature();
@@ -613,9 +617,10 @@ void LoRaReceive(int PacketSize) {
 /**************************************************************************************************************/
 
 void setup() {
-  if (Serial) {
-    Serial.begin(115200);
-  }
+  //if (Serial) {
+  //  Serial.begin(115200);
+  //}
+  Serial.begin(115200);
   if (Serial) Serial.println("Moat 1.1");
 
   pinMode(PIN_BEAR, OUTPUT);
@@ -732,7 +737,7 @@ void loop() {
           MaxAltitude = GPS.altitude.meters();
         }
         LoRaSend();
-        NextTimeToSend += 1000;
+        NextTimeToSend += TRANSMISSION_INTERVAL;
 
         // Write some debugs to the console
         if (Serial) {
