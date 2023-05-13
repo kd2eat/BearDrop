@@ -1,4 +1,4 @@
-#define SSID1 "RedRover"			// Change as needed
+#define SSID1 "RedRover2"			// Change as needed
 #define PASSWORD1 NULL				// Change as needed
 
 #define SSID2 "iPhone"		// Change as needed
@@ -9,7 +9,7 @@
 #define LORA_2_PAYLOAD_CALLSIGN "KD2EAT-11"
 #define MY_CALLSIGN "KD2EAT-10"
 
-//#define READONLY_STATION
+#define READONLY_STATION
 
 #define BROADCAST_MASK  (uint32_t)0x000000ff      // Be dumb and assume /24 networks for now
 #define PAYLOAD_SUMMARY_PORT  55673

@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-#define DROPALTITUDE 30000 //in meters
-#define MAX_PARACHUTE_CUT 600   // Do not allow parachute cut if above this altitude
+#define DROPALTITUDE 28000 //in meters
+#define MAX_PARACHUTE_CUT 700   // Do not allow parachute cut if above this altitude
 #define BURNTIME  4000    // Length of time to turn on nichrome
 
 //#define DEBUG_TELEMETRY         // Enable if sensors aren't attached
