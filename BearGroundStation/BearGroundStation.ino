@@ -373,6 +373,9 @@ SendUDPlog() {
   temp = ((float) TelemetryData.TempTenths / 10.0);
   sprintf(templine,"%2.1f", temp);
   udp.print(", \"Temperature\": \""); udp.print(templine); udp.print("\"");  udp.println("}");
+  temp = ((float) TelemetryData.OutsideTempTenths / 10.0);
+  sprintf(templine,"%2.1f", temp);
+  udp.print(", \"OutsideTemp\": \""); udp.print(templine); udp.print("\"");  udp.println("}");
   udp.endPacket();
 }
 /**************************************************************************************************************/// Send UDP packet in Project Horus "Payload Summary" format.  
@@ -482,20 +485,33 @@ void setup() {
   OledUpdate();   // Paint initial screen
 }
 
-uint32_t  NextSecond = 0;       // Initialize couner for 1 second loop
+uint32_t  NextTransmit = 0;       // Initialize couner for 1 second loop
 uint32_t  NextFifteen = 0;   // Initialize timer for 5 second loop
 uint32_t  NextPayloadSummary = 0;         // Initialize timer for Payload Summary loop
 
 void loop() {
+  uint32_t  TimeSinceReceive;
+  int       XmitsWithNoReceive = 0;
+
   LoRaReceive(LoRa.parsePacket());
 
-  // One Second Loop
-  if (millis() > NextSecond) {  
-    NextSecond = millis() + TRANSMISSION_INTERVAL;
-    LoRaSend();  //once a second send LoRa signal to Tbeam to confirm connection
-    LEDupdate();
-    OledUpdate();
-  } // One Second Loop
+  // Check if it's transmit time
+  if (millis() > NextTransmit) {  
+    TimeSinceReceive = millis() - LastTbeamPacket;
+    // Try to transmit promptly after receive, to avoid overlapping.  
+    if (( TimeSinceReceive < 100) || (TimeSinceReceive > 3000))  {
+      // We just received a packet or it's been a long time.
+      NextTransmit = millis() + TRANSMISSION_INTERVAL + (XmitsWithNoReceive * 100);   // Add some exponential backoff
+      if (TimeSinceReceive > 3000) {
+        XmitsWithNoReceive++;
+      } else {
+        XmitsWithNoReceive = 0;
+      }
+      LoRaSend();  // send LoRa signal to Tbeam to confirm connection
+      LEDupdate();
+      OledUpdate();
+    } 
+  } // Time to transmit
 
   // 15 second loop
   if (millis() > NextFifteen) {   

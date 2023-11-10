@@ -20,6 +20,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_BMP280.h>
 #include "hexdump.h"
 
 // https://github.com/lewisxhe/AXP202X_Library
@@ -54,6 +55,7 @@ uint8_t buzzerSwitchState = 0;
 
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
+Adafruit_BMP280 bmp280; // Initialize using "default" i2c and hope for the best
 
 AXP20X_Class axp;
 
@@ -127,7 +129,7 @@ GetTemperature()
   }
   AdcValue = AdcValue / TEMP_SAMPLES;
   int32_t millivolts = AdcValue * 3300  / 4096;   // 12 bit ADC (4096 values), 3v3 (3300 millivolts)
-  millivolts +=144;          // Based on observation, the ADC is reading high
+  millivolts +=67;          // Based on observation, the ADC is reading low, so adjust.
   int temperature = millivolts - 500;   // Tenths of a degree C
   //Serial.print("Pin: "); Serial.print(millivolts); Serial.print("    Temperature is: "); Serial.println(temperature);
   return(temperature);
@@ -534,6 +536,7 @@ void LoRaSend() {
   //TelemetryData.Millivolts = (int) axp.getBattVoltage();
   TelemetryData.Millivolts = (int) GetVoltage();
   TelemetryData.TempTenths = GetTemperature();
+  TelemetryData.OutsideTempTenths = (int16_t) bmp280.readTemperature() * 10;
   FixLoraChecksum((uint8_t *) &TelemetryData, sizeof(TelemetryData));  
 
   
@@ -656,6 +659,10 @@ void setup() {
     if (Serial) Serial.println(F("failed to initialize communication with AXP192"));
   }
   
+  // Initialize BMP280 temp sensor (if present)
+  if (!bmp280.begin(0x76)) {
+    Serial.println("BMP280 failed to initialize.");
+  }
 }
 /**************************************************************************************************************/
 unsigned long  NextSecond = 0;    // Start with a bogus LastSecond value so that we pass through the loop the first time
@@ -745,7 +752,9 @@ void loop() {
           Serial.print("Alt  : ");    Serial.print(GPS.altitude.meters());    Serial.print("\tSats: ");    Serial.print(GPS.satellites.value());
           Serial.print("\t");    Serial.print("Time      : ");   Serial.print(GPS.time.hour());    Serial.print(":");
           Serial.print(GPS.time.minute()); Serial.print(":"); Serial.println(GPS.time.second());
-          Serial.print("Bytes: "); Serial.println(Bytes); Serial.println("");
+          Serial.print("Bytes: "); Serial.println(Bytes); 
+          Serial.print("BMP280 temp: "); Serial.println(bmp280.readTemperature());
+          Serial.println("");
         }
       }
   }

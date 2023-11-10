@@ -7,12 +7,12 @@
 #include "localssids.h"         // Can override SSID's above.   This file will be empty in github.
 
 #define LORA_2_PAYLOAD_CALLSIGN "KD2EAT-11"
-#define MY_CALLSIGN "KD2EAT-10"
+#define MY_CALLSIGN "W2CXM-9"
 
-#define READONLY_STATION
+//#define READONLY_STATION
 
 #define BROADCAST_MASK  (uint32_t)0x000000ff      // Be dumb and assume /24 networks for now
-#define PAYLOAD_SUMMARY_PORT  55673
+#define PAYLOAD_SUMMARY_PORT  55672               // Using 55672 - the horus_udp port, rather than the radiosonde port
 //#define PAYLOAD_SUMMARY_PORT  5000
 #define UDP_LOGGING_PORT  5010
 #define PAYLOAD_SUMMARY_INTERVAL  10000   // Interval for UDP packet sending (ms)

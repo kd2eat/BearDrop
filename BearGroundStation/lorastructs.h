@@ -20,6 +20,7 @@ typedef struct TelemetryData { //Tbeam to Ground Station
   float  TrackerSNR;
   int16_t Millivolts;
   int16_t TempTenths;
+  int16_t OutsideTempTenths;
   uint16_t  Altitude;
   uint16_t  MaxAltitude;
   uint16_t LastCommandReceived;
